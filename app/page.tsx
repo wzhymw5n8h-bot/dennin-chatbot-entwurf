@@ -1,65 +1,140 @@
-import Image from "next/image";
+"use client";
+
+import { useState, useRef, useEffect } from "react";
 
 export default function Home() {
+  const [input, setInput] = useState("");
+  const [chat, setChat] = useState<{ role: string; text: string }[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Ref für das automatische Scrollen (wie ein Anker im HTML)
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  // React Hook: Feuert jedes Mal, wenn sich 'chat' oder 'isLoading' ändert
+  useEffect(() => {
+    scrollToBottom();
+  }, [chat, isLoading]);
+
+  const sendMessage = async () => {
+    if (!input.trim()) return;
+
+    const newChat = [...chat, { role: "user", text: input }];
+    setChat(newChat);
+    setInput("");
+    setIsLoading(true);
+
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        body: JSON.stringify({ message: input, history: newChat }),
+      });
+
+      if (!res.ok) throw new Error("Netzwerk Fehler");
+
+      const data = await res.json();
+      setChat([...newChat, { role: "bot", text: data.reply }]);
+    } catch (error) {
+      setChat([...newChat, { role: "bot", text: "Tut mir leid, die Verbindung zur Werkstatt ist gerade unterbrochen." }]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4 font-sans">
+
+      {/* Haupt-Container (Die "App") */}
+      <div className="w-full max-w-md bg-white rounded-xl shadow-2xl overflow-hidden border border-gray-200">
+
+        {/* Header / Kopfzeile */}
+        <div className="bg-slate-800 p-4 text-white flex items-center gap-3">
+          <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center text-xl">
+            👨‍🔧
+          </div>
+          <div>
+            <h1 className="font-bold text-lg">Werkstatt Dennin</h1>
+            <p className="text-xs text-gray-300 flex items-center gap-1">
+              <span className="w-2 h-2 bg-green-500 rounded-full inline-block animate-pulse"></span>
+              KI-Meister Online
+            </p>
+          </div>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
+
+        {/* Chat-Bereich */}
+        <div className="h-[500px] overflow-y-auto p-4 bg-slate-50 space-y-4">
+          {/* Willkommens-Nachricht (Hardcoded für den Start) */}
+          {chat.length === 0 && (
+            <div className="text-center text-sm text-gray-500 my-4">
+              <p>Moin! Wie kann ich Ihrem Auto heute helfen?</p>
+            </div>
+          )}
+
+          {chat.map((msg, index) => (
+            <div
+              key={index}
+              className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+            >
+              <div
+                className={`max-w-[80%] p-3 rounded-2xl text-sm leading-relaxed shadow-sm ${msg.role === "user"
+                    ? "bg-blue-600 text-white rounded-tr-none" // Kunde: Blau, Ecke oben rechts eckig
+                    : "bg-white border border-gray-200 text-gray-800 rounded-tl-none" // Bot: Weiß, Ecke oben links eckig
+                  }`}
+              >
+                {/* Markdown-ähnliche Formatierung für Zeilenumbrüche */}
+                {msg.text.split('\n').map((line, i) => (
+                  <span key={i}>
+                    {line}
+                    <br />
+                  </span>
+                ))}
+              </div>
+            </div>
+          ))}
+
+          {/* Lade-Animation (Die hüpfenden Punkte) */}
+          {isLoading && (
+            <div className="flex justify-start">
+              <div className="bg-white border border-gray-200 p-3 rounded-2xl rounded-tl-none shadow-sm flex gap-1">
+                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
+                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
+              </div>
+            </div>
+          )}
+
+          {/* Unsichtbarer Anker zum Scrollen */}
+          <div ref={messagesEndRef} />
+        </div>
+
+        {/* Eingabe-Bereich */}
+        <div className="p-4 bg-white border-t border-gray-100">
+          <div className="flex gap-2">
+            <input
+              className="flex-1 p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-black"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && sendMessage()}
+              placeholder="z.B. Bremsen quietschen..."
+              disabled={isLoading}
             />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+            <button
+              onClick={sendMessage}
+              disabled={isLoading}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-semibold transition-colors disabled:opacity-50"
+            >
+              ➤
+            </button>
+          </div>
+          <div className="text-center mt-2">
+            <span className="text-[10px] text-gray-400">KI kann Fehler machen. Bei Notfällen immer anrufen.</span>
+          </div>
         </div>
-      </main>
+
+      </div>
     </div>
   );
 }
